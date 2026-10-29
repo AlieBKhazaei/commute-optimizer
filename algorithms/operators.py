@@ -62,11 +62,12 @@ def get_neighbors(state: State, problem: CommuteProblem) -> List[State]:
             new_path_state = State(path=new_path, departure_time=state.departure_time)
             if problem.is_valid_state(new_path_state):
                 neighbors.append(new_path_state)
-            ## different time and path
-            for new_time in cal_new_time(state, problem.t_step, problem.t_min, problem.t_max):
-                new_path_and_time_state = State(path=new_path, departure_time=new_time)
-                if problem.is_valid_state(new_path_and_time_state):
-                    neighbors.append(new_path_and_time_state)
+
+                ## different time and path
+                for new_time in cal_new_time(state, problem.t_step, problem.t_min, problem.t_max):
+                    new_path_and_time_state = State(path=new_path, departure_time=new_time)
+                    if problem.is_valid_state(new_path_and_time_state):
+                        neighbors.append(new_path_and_time_state)
 
 
 
@@ -83,16 +84,39 @@ def get_neighbors(state: State, problem: CommuteProblem) -> List[State]:
                 if problem.is_valid_state(new_path_state):
                     neighbors.append(new_path_state)
 
-                ## different time and path
-                for new_time in cal_new_time(state, problem.t_step,problem.t_min, problem.t_max):
-                    new_path_and_time_state = State(path=new_path, departure_time=new_time)
-                    if problem.is_valid_state(new_path_and_time_state):
-                        neighbors.append(new_path_and_time_state)
+                    ## different time and path
+                    for new_time in cal_new_time(state, problem.t_step,problem.t_min, problem.t_max):
+                        new_path_and_time_state = State(path=new_path, departure_time=new_time)
+                        if problem.is_valid_state(new_path_and_time_state):
+                            neighbors.append(new_path_and_time_state)
 
     return neighbors
 
 
 
 def crossover(parent1: State, parent2: State, problem: CommuteProblem) -> State:
-    # TODO: Implement genetic crossover
-    raise NotImplementedError("Implement crossover in algorithms/operators.py")
+    internal_path1 = parent1.path[1:-1]
+    internal_path2 = parent2.path[1:-1]
+    common_nodes = set(internal_path1) & set(internal_path2)
+
+    time = (parent1.departure_time + parent2.departure_time) / 2
+    valid_times = problem.get_valid_time_domain()
+    child_departure_time = min(valid_times, key=lambda t: abs(t - time))
+
+    for node in parent1.path:
+        if node not in common_nodes:
+            continue
+        new_path = tuple(parent1.path[:parent1.path.index(node) + 1] + parent2.path[parent2.path.index(node) + 1:])
+        if problem.is_valid_path(new_path):
+            child = State(path= new_path, departure_time= child_departure_time)
+            if problem.is_valid_state(child):
+                return child
+            
+    if problem.is_valid_state(parent1):
+        return parent1
+
+    if problem.is_valid_state(parent2):
+        return parent2
+
+    # Generate a valid state if both parents are invalid
+    return problem.generate_initial_state()
