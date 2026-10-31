@@ -8,6 +8,7 @@ from algorithms.base import LocalSearchSolver
 from core.state import State
 from core.problem import CommuteProblem
 from algorithms.operators import get_neighbors
+import random
 
 
 class LocalBeamSearchSolver(LocalSearchSolver):
@@ -16,22 +17,71 @@ class LocalBeamSearchSolver(LocalSearchSolver):
         self.beam_width: int = self.params.get("beam_width", 5)
         self.max_iterations: int = self.params.get("max_iterations", 150)
 
+
+    def random_start(self) -> State:
+        """Random departure time from the valid domain + a short random walk on the path."""
+        base = self.problem.generate_initial_state()
+        state = State(path=base.path,
+                      departure_time=random.choice(self.problem.get_valid_time_domain()))
+        for _ in range(10):
+            neighbors = get_neighbors(state, self.problem)
+            if not neighbors:
+                break
+            state = random.choice(neighbors)
+        return state
+ 
     def solve(self) -> Tuple[State, float]:
-        """
-        Executes Local Beam Search.
-
-        Guidelines:
-        - Maintain a set of `beam_width` parallel configurations.
-        - In each iteration, generate neighbors from all active states in the beam.
-        - Pool and rank all generated successors collectively, then retain the top `beam_width` states.
-        - Halt when the beam ceases to improve or reaches max_iterations.
-        - Record the best cost of the population at each step in self.history.
-
-        Encouraged:
-        - Ensuring diversity across states in the beam to prevent collapse into a single redundant path.
-
-        Prohibited:
-        - Treating this as K independent, non-communicating searches.
-        """
-        # TODO: Implement Local Beam Search
-        raise NotImplementedError("Implement solve() in algorithms/beam_search.py")
+        self.history = []
+ 
+        # first beam: the initial state + different random states
+        initial_state = self.problem.generate_initial_state()
+        beam = [initial_state]
+        visited = [initial_state]
+        attempts = 0
+        while len(beam) < self.beam_width and attempts < 10 * self.beam_width :
+            attempts += 1
+            start_state = self.random_start()
+            if start_state not in visited:
+                visited.append(start_state)
+                beam.append(start_state)
+ 
+        best_state = beam[0]
+        best_cost = self.problem.evaluate(best_state)
+        for state in beam:
+            cost = self.problem.evaluate(state)
+            if cost < best_cost:
+                best_state = state
+                best_cost = cost
+        self.history.append(best_cost)
+ 
+        iteration = 0
+        improved = True
+        while iteration < self.max_iterations and improved :
+            iteration += 1
+ 
+            # neighbors of all the states in the beam go to one pool
+            pool = []
+            for state in beam:
+                neighbors = get_neighbors(state, self.problem)
+                for neighbor in neighbors:
+                    if neighbor not in visited and neighbor not in pool:
+                        pool.append(neighbor)
+            if not pool:
+                break
+ 
+            # best K states of the whole pool
+            pool.sort(key=self.problem.evaluate)
+            beam = pool[:self.beam_width]
+            for state in beam:
+                visited.append(state)
+ 
+            top_cost = self.problem.evaluate(beam[0])
+            if top_cost < best_cost:
+                best_state = beam[0]
+                best_cost = top_cost
+            else:
+                improved = False
+ 
+            self.history.append(best_cost)
+ 
+        return(best_state, best_cost)
